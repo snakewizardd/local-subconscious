@@ -1,0 +1,6 @@
+chromadb
+requests
+keyboard
+fastapi
+uvicorn
+numpy

@@ -1,0 +1,33 @@
+# Project Subconscious - Gitignore
+
+# Local databases and backlogs (DO NOT COMMIT)
+/db/
+backlog.txt
+
+# Virtual Environments
+venv/
+env/
+.env
+.venv/
+env.bak/
+venv.bak/
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
