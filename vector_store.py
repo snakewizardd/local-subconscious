@@ -1,6 +1,9 @@
 import chromadb
 import uuid
 import os
+import hashlib
+import re
+from datetime import datetime, timezone
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "db")
 
@@ -10,6 +13,13 @@ class VectorStore:
         self.client = chromadb.PersistentClient(path=DB_PATH)
         self.collection = self.client.get_or_create_collection(name="subconscious_thoughts")
 
+    def _normalize_thought(self, text):
+        text = text.strip().lower()
+        return re.sub(r'\s+', ' ', text)
+
+    def _hash_thought(self, text):
+        return hashlib.sha256(text.encode('utf-8')).hexdigest()
+
     def process_thought(self, text, embedding):
         """
         Executes the crucial Order of Operations:
@@ -18,6 +28,13 @@ class VectorStore:
         
         Returns the top 3 closest matches.
         """
+        normalized_text = self._normalize_thought(text)
+        text_hash = self._hash_thought(normalized_text)
+        
+        # Check for duplicates
+        existing = self.collection.get(where={"hash": text_hash})
+        is_duplicate = existing and existing.get('ids') and len(existing['ids']) > 0
+
         matches = []
         
         # 1. QUERY FIRST
@@ -31,12 +48,15 @@ class VectorStore:
                 matches = results['documents'][0]
         
         # 2. UPSERT SECOND
-        doc_id = str(uuid.uuid4())
-        self.collection.add(
-            ids=[doc_id],
-            embeddings=[embedding],
-            documents=[text]
-        )
+        if not is_duplicate:
+            doc_id = str(uuid.uuid4())
+            timestamp = datetime.now(timezone.utc).isoformat()
+            self.collection.add(
+                ids=[doc_id],
+                embeddings=[embedding],
+                documents=[text],
+                metadatas=[{"hash": text_hash, "timestamp": timestamp}]
+            )
         
         return matches
 
