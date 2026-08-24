@@ -12,10 +12,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const detailsPanel = document.getElementById('thought-details');
     const selectedText = document.getElementById('selected-text');
     const closeDetailsBtn = document.getElementById('close-details');
+    const entitySelect = document.getElementById('entity-select');
     const REFRESH_INTERVAL_MS = 3000;
     let feedSignature = null;
     let graphSignature = null;
     let refreshPromise = null;
+    let entitySignature = null;
+
+    function entityParam() {
+        const value = entitySelect.value;
+        return value ? `&entity=${encodeURIComponent(value)}` : '';
+    }
     
     // Vis.js Options (Dark Theme, smooth physics)
     const options = {
@@ -130,9 +137,34 @@ document.addEventListener('DOMContentLoaded', () => {
         return response.json();
     }
 
+    async function loadEntities() {
+        try {
+            const data = await fetchJson('/api/entities');
+            if (!Array.isArray(data.entities)) return;
+            const nextSignature = JSON.stringify(data.entities);
+            if (nextSignature === entitySignature) return;
+            entitySignature = nextSignature;
+
+            const current = entitySelect.value;
+            entitySelect.innerHTML = '';
+            data.entities.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item.default ? '' : item.entity;
+                option.textContent = item.default
+                    ? `Subconscious (default) — ${item.count}`
+                    : `${item.entity} — ${item.count}`;
+                entitySelect.appendChild(option);
+            });
+            entitySelect.value = current;
+            if (entitySelect.selectedIndex === -1) entitySelect.selectedIndex = 0;
+        } catch (err) {
+            console.error("Failed to load entities:", err);
+        }
+    }
+
     async function loadFeed() {
         try {
-            const data = await fetchJson('/api/thoughts');
+            const data = await fetchJson(`/api/thoughts?_=1${entityParam()}`);
             if (!Array.isArray(data.thoughts)) {
                 throw new Error('/api/thoughts returned an invalid payload');
             }
@@ -174,7 +206,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function loadGraph(threshold) {
         try {
-            const data = await fetchJson(`/api/graph?threshold=${encodeURIComponent(threshold)}`);
+            const data = await fetchJson(`/api/graph?threshold=${encodeURIComponent(threshold)}${entityParam()}`);
             if (!Array.isArray(data.nodes) || !Array.isArray(data.edges)) {
                 throw new Error('/api/graph returned an invalid payload');
             }
@@ -223,6 +255,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         refreshPromise = Promise.all([
+            loadEntities(),
             loadFeed(),
             loadGraph(thresholdSlider.value)
         ]).finally(() => {
@@ -230,6 +263,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         return refreshPromise;
     }
+
+    entitySelect.addEventListener('change', () => {
+        feedSignature = null;
+        graphSignature = null;
+        hideDetails();
+        refreshDashboard();
+    });
 
     refreshButton.addEventListener('click', refreshDashboard);
     window.addEventListener('focus', refreshDashboard);

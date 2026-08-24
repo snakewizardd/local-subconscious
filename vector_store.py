@@ -14,11 +14,53 @@ except ImportError:  # keep working on older chromadb builds
 DB_PATH = os.path.join(os.path.dirname(__file__), "db")
 _STORE_LOCK = threading.Lock()
 
+DEFAULT_COLLECTION = "subconscious_thoughts"
+ENTITY_PREFIX = "entity_"
+
+def entity_collection_name(entity):
+    """Sanitize an entity name into a valid, prefixed Chroma collection name."""
+    slug = re.sub(r'[^a-zA-Z0-9._-]+', '-', str(entity).strip().lower()).strip('-._')
+    if not slug:
+        raise ValueError("Entity name must contain at least one alphanumeric character.")
+    return (ENTITY_PREFIX + slug)[:63].rstrip('-._')
+
+def list_entities():
+    """Return the default collection plus all entity_* collections with counts."""
+    entities = []
+    with _STORE_LOCK:
+        try:
+            client = chromadb.PersistentClient(path=DB_PATH)
+            names = []
+            for col in client.list_collections():
+                names.append(col if isinstance(col, str) else getattr(col, "name", None))
+            for name in names:
+                if name == DEFAULT_COLLECTION:
+                    entity = "subconscious"
+                elif name and name.startswith(ENTITY_PREFIX):
+                    entity = name[len(ENTITY_PREFIX):]
+                else:
+                    continue
+                try:
+                    count = client.get_collection(name).count()
+                except Exception:
+                    count = 0
+                entities.append({
+                    "entity": entity,
+                    "collection": name,
+                    "count": count,
+                    "default": name == DEFAULT_COLLECTION
+                })
+        except Exception:
+            return entities
+    entities.sort(key=lambda item: (not item["default"], item["entity"]))
+    return entities
+
 class VectorStore:
-    def __init__(self):
+    def __init__(self, collection_name=DEFAULT_COLLECTION):
         # Operates locally, creating the ./db folder if it doesn't exist
+        self.collection_name = collection_name
         self.client = chromadb.PersistentClient(path=DB_PATH)
-        self.collection = self.client.get_or_create_collection(name="subconscious_thoughts")
+        self.collection = self.client.get_or_create_collection(name=self.collection_name)
 
     def _ensure_client(self):
         if not hasattr(self, "client") or self.client is None:
@@ -27,7 +69,7 @@ class VectorStore:
     def _refresh_collection(self):
         self._ensure_client()
         try:
-            self.collection = self.client.get_or_create_collection(name="subconscious_thoughts")
+            self.collection = self.client.get_or_create_collection(name=self.collection_name)
         except (chromadb.errors.InternalError, ValueError, TypeError):
             self.collection = None
 
@@ -128,7 +170,7 @@ class VectorStore:
                     pass
             try:
                 client = chromadb.PersistentClient(path=DB_PATH)
-                collection = client.get_or_create_collection(name="subconscious_thoughts")
+                collection = client.get_or_create_collection(name=self.collection_name)
                 self.client = client
                 self.collection = collection
             except (AttributeError, KeyError, chromadb.errors.InternalError, ValueError, TypeError):
