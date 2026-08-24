@@ -1,4 +1,4 @@
-# Project Subconscious - Gitignore
+﻿# Project Subconscious - Gitignore
 
 # Local databases and backlogs (DO NOT COMMIT)
 /db/
@@ -14,6 +14,11 @@ env/
 .venv/
 env.bak/
 venv.bak/
+
+# Local project documents and generated files
+inputs/
+inputs/*.pdf
+inputs/*.docx
 
 # Python Cache
 __pycache__/
