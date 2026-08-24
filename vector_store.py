@@ -45,7 +45,6 @@ class VectorStore:
         """
         normalized_text = self._normalize_thought(text)
         text_hash = self._hash_thought(normalized_text)
-        is_duplicate = self.is_duplicate(text)
 
         matches = []
         
@@ -60,15 +59,14 @@ class VectorStore:
                 matches = results['documents'][0]
         
         # 2. UPSERT SECOND
-        if not is_duplicate:
-            doc_id = str(uuid.uuid4())
-            timestamp = datetime.now(timezone.utc).isoformat()
-            self.collection.add(
-                ids=[doc_id],
-                embeddings=[embedding],
-                documents=[text],
-                metadatas=[{"hash": text_hash, "timestamp": timestamp}]
-            )
+        doc_id = str(uuid.uuid4())
+        timestamp = datetime.now(timezone.utc).isoformat()
+        self.collection.add(
+            ids=[doc_id],
+            embeddings=[embedding],
+            documents=[text],
+            metadatas=[{"hash": text_hash, "timestamp": timestamp}]
+        )
         
         return matches
 
