@@ -1,6 +1,9 @@
 import chromadb
 import uuid
 import os
+import hashlib
+import re
+from datetime import datetime, timezone
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "db")
 
@@ -10,6 +13,28 @@ class VectorStore:
         self.client = chromadb.PersistentClient(path=DB_PATH)
         self.collection = self.client.get_or_create_collection(name="subconscious_thoughts")
 
+    def _normalize_thought(self, text):
+        text = text.strip().lower()
+        return re.sub(r'\s+', ' ', text)
+
+    def _hash_thought(self, text):
+        return hashlib.sha256(text.encode('utf-8')).hexdigest()
+
+    def is_duplicate(self, text):
+        normalized_text = self._normalize_thought(text)
+        text_hash = self._hash_thought(normalized_text)
+        existing = self.collection.get(where={"hash": text_hash})
+        if existing and existing.get('ids'):
+            return True
+
+        # Entries written before hash metadata was introduced must still deduplicate.
+        legacy_entries = self.collection.get(include=["documents"])
+        return any(
+            self._normalize_thought(document) == normalized_text
+            for document in legacy_entries.get("documents", [])
+            if isinstance(document, str)
+        )
+
     def process_thought(self, text, embedding):
         """
         Executes the crucial Order of Operations:
@@ -18,6 +43,9 @@ class VectorStore:
         
         Returns the top 3 closest matches.
         """
+        normalized_text = self._normalize_thought(text)
+        text_hash = self._hash_thought(normalized_text)
+
         matches = []
         
         # 1. QUERY FIRST
@@ -32,10 +60,12 @@ class VectorStore:
         
         # 2. UPSERT SECOND
         doc_id = str(uuid.uuid4())
+        timestamp = datetime.now(timezone.utc).isoformat()
         self.collection.add(
             ids=[doc_id],
             embeddings=[embedding],
-            documents=[text]
+            documents=[text],
+            metadatas=[{"hash": text_hash, "timestamp": timestamp}]
         )
         
         return matches
@@ -49,5 +79,5 @@ class VectorStore:
             return {"ids": [], "documents": [], "embeddings": []}
             
         return self.collection.get(
-            include=["documents", "embeddings"]
+            include=["documents", "embeddings", "metadatas"]
         )

@@ -30,7 +30,7 @@ A FastAPI web server (`explorer.py`) pushing data to a physics-based frontend (`
 1. **Spin up the Neural Engine:** Open LM Studio. Load a lightweight embedding model (e.g., `nomic-embed-text-v1.5.Q4_K_M.gguf`). Ensure the local server is running on port `1234`.
 2. **Clone the Matrix:** 
    ```bash
-   git clone git@github.com:yourusername/local-subconscious.git
+   git clone git@github.com:snakewizardd/local-subconscious.git
    cd local-subconscious
    pip install -r requirements.txt
    ```
