@@ -26,6 +26,8 @@ def cosine_similarity(v1, v2):
 
     if a.size == 0 or b.size == 0:
         return 0.0
+    if a.ndim != 1 or b.ndim != 1 or a.shape != b.shape:
+        return 0.0
     if np.isnan(a).any() or np.isnan(b).any():
         return 0.0
     if np.isinf(a).any() or np.isinf(b).any():
@@ -123,5 +125,4 @@ def get_graph(threshold: float = 0.5):
 
 if __name__ == "__main__":
     import uvicorn
-    # Run with: uvicorn explorer:app --reload
     uvicorn.run(app, host="127.0.0.1", port=8000)

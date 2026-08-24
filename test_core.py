@@ -1,6 +1,10 @@
 import unittest
+from unittest.mock import patch
+
+import chromadb
 
 import explorer
+import vector_store
 from vector_store import VectorStore
 
 
@@ -53,6 +57,28 @@ class ExplorerTests(unittest.TestCase):
         store.collection = FakeCollection(["  A legacy thought  "])
 
         self.assertTrue(store.is_duplicate("a LEGACY\nthought"))
+
+    def test_get_all_thoughts_handles_chromadb_internal_error(self):
+        class BrokenCollection:
+            def count(self):
+                return 1
+
+            def get(self, *args, **kwargs):
+                raise chromadb.errors.InternalError("Error finding id")
+
+        class FakeClient:
+            def get_or_create_collection(self, name):
+                return BrokenCollection()
+
+        store = VectorStore.__new__(VectorStore)
+
+        with patch.object(vector_store.chromadb, "PersistentClient", return_value=FakeClient()):
+            self.assertEqual(store.get_all_thoughts(), {
+                "ids": [],
+                "documents": [],
+                "embeddings": [],
+                "metadatas": [],
+            })
 
 
 if __name__ == "__main__":
