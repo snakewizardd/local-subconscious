@@ -1,6 +1,6 @@
-chromadb
-requests
-keyboard
-fastapi
-uvicorn
-numpy
+chromadb==1.5.9
+requests==2.34.2
+keyboard==0.13.5
+fastapi==0.141.1
+uvicorn==0.52.4
+numpy==2.2.6

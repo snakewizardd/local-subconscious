@@ -20,6 +20,21 @@ class VectorStore:
     def _hash_thought(self, text):
         return hashlib.sha256(text.encode('utf-8')).hexdigest()
 
+    def is_duplicate(self, text):
+        normalized_text = self._normalize_thought(text)
+        text_hash = self._hash_thought(normalized_text)
+        existing = self.collection.get(where={"hash": text_hash})
+        if existing and existing.get('ids'):
+            return True
+
+        # Entries written before hash metadata was introduced must still deduplicate.
+        legacy_entries = self.collection.get(include=["documents"])
+        return any(
+            self._normalize_thought(document) == normalized_text
+            for document in legacy_entries.get("documents", [])
+            if isinstance(document, str)
+        )
+
     def process_thought(self, text, embedding):
         """
         Executes the crucial Order of Operations:
@@ -30,10 +45,7 @@ class VectorStore:
         """
         normalized_text = self._normalize_thought(text)
         text_hash = self._hash_thought(normalized_text)
-        
-        # Check for duplicates
-        existing = self.collection.get(where={"hash": text_hash})
-        is_duplicate = existing and existing.get('ids') and len(existing['ids']) > 0
+        is_duplicate = self.is_duplicate(text)
 
         matches = []
         
@@ -69,5 +81,5 @@ class VectorStore:
             return {"ids": [], "documents": [], "embeddings": []}
             
         return self.collection.get(
-            include=["documents", "embeddings"]
+            include=["documents", "embeddings", "metadatas"]
         )

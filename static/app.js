@@ -123,14 +123,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await res.json();
             
             feedContainer.innerHTML = '';
-            // Display newest first (assuming chronological insertion)
-            const thoughts = data.thoughts.reverse();
+            const thoughts = data.thoughts.sort((first, second) => {
+                return new Date(second.timestamp || 0) - new Date(first.timestamp || 0);
+            });
             
             thoughts.forEach(thought => {
                 const div = document.createElement('div');
                 div.className = 'thought-card';
                 div.dataset.id = thought.id;
-                div.innerHTML = `<p>${thought.text}</p>`;
+                const text = document.createElement('p');
+                text.textContent = thought.text;
+                div.appendChild(text);
                 
                 div.addEventListener('click', () => {
                     network.selectNodes([thought.id]);
@@ -152,6 +155,27 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const res = await fetch(`/api/graph?threshold=${threshold}`);
             const data = await res.json();
+
+            const timestamps = data.nodes
+                .map(node => Date.parse(node.timestamp))
+                .filter(timestamp => !Number.isNaN(timestamp));
+            const oldest = Math.min(...timestamps);
+            const newest = Math.max(...timestamps);
+            data.nodes.forEach(node => {
+                const timestamp = Date.parse(node.timestamp);
+                const age = Number.isNaN(timestamp) || newest === oldest
+                    ? 0
+                    : (timestamp - oldest) / (newest - oldest);
+                const red = Math.round(35 + age * 44);
+                const green = Math.round(93 + age * 100);
+                const blue = Math.round(130 + age * 100);
+                node.color = {
+                    background: `rgb(${red}, ${green}, ${blue})`,
+                    border: '#d6f3ff',
+                    highlight: { background: '#4fc1ff', border: '#ffffff' },
+                    hover: { background: '#4fc1ff', border: '#ffffff' }
+                };
+            });
             
             nodesData.clear();
             edgesData.clear();

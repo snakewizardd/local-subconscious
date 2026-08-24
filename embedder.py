@@ -13,8 +13,8 @@ def get_embedding(text):
             "input": text,
             "model": "local-model"  # Typically ignored by LM Studio, but standard for OpenAI spec
         }
-        # Short timeout to not block UI significantly on fail
-        response = requests.post(API_URL, json=payload, timeout=3.0)
+        # Increased timeout to allow for local model loading and slow inference
+        response = requests.post(API_URL, json=payload, timeout=30.0)
         response.raise_for_status()
         
         data = response.json()

@@ -100,6 +100,11 @@ class SubconsciousUI:
         threading.Thread(target=self.process_thought_thread, args=(thought,), daemon=True).start()
 
     def process_thought_thread(self, thought):
+        # Issue #1: Check for duplicates before hitting the slow embedding API
+        if self.vector_store.is_duplicate(thought):
+            self.root.after(0, lambda: self.display_message("Thought already exists in your subconscious.\n\nDuplicate skipped.\n\nPress Escape to close."))
+            return
+
         embedding = get_embedding(thought)
         
         if embedding is None:
@@ -120,6 +125,13 @@ class SubconsciousUI:
         self.reflection_text.config(state=tk.NORMAL)
         self.reflection_text.delete(1.0, tk.END)
         self.reflection_text.insert(tk.END, "LM Studio endpoint unreachable.\n\nThought saved locally to backlog.txt.\n\nPress Escape to close.")
+        self.reflection_text.config(state=tk.DISABLED)
+        self.center_window()
+
+    def display_message(self, message):
+        self.reflection_text.config(state=tk.NORMAL)
+        self.reflection_text.delete(1.0, tk.END)
+        self.reflection_text.insert(tk.END, message)
         self.reflection_text.config(state=tk.DISABLED)
         self.center_window()
 

@@ -50,6 +50,7 @@ def get_thoughts():
     data = vector_store.get_all_thoughts()
     ids = data.get("ids", [])
     documents = data.get("documents", [])
+    metadatas = data.get("metadatas", [])
 
     if not ids:
         return {"thoughts": []}
@@ -57,9 +58,13 @@ def get_thoughts():
     thoughts = []
     for i in range(len(ids)):
         text = documents[i] if i < len(documents) else ""
+        meta = metadatas[i] if metadatas and i < len(metadatas) else {}
+        if not isinstance(meta, dict):
+            meta = {}
         thoughts.append({
             "id": ids[i],
-            "text": text
+            "text": text,
+            "timestamp": meta.get("timestamp")
         })
     return {"thoughts": thoughts}
 
@@ -73,6 +78,7 @@ def get_graph(threshold: float = 0.5):
     ids = data.get("ids", [])
     documents = data.get("documents", [])
     embeddings = data.get("embeddings", [])
+    metadatas = data.get("metadatas", [])
 
     if not ids or len(embeddings) == 0:
         return {"nodes": [], "edges": []}
@@ -83,12 +89,16 @@ def get_graph(threshold: float = 0.5):
     nodes = []
     for i in range(len(ids)):
         text = documents[i] if i < len(documents) else ""
+        meta = metadatas[i] if metadatas and i < len(metadatas) else {}
+        if not isinstance(meta, dict):
+            meta = {}
         short_text = text[:30] + "..." if len(text) > 30 else text
         nodes.append({
             "id": ids[i],
             "label": short_text,
             "title": text,
-            "full_text": text
+            "full_text": text,
+            "timestamp": meta.get("timestamp")
         })
 
     edges = []
