@@ -150,8 +150,17 @@ class SubconsciousUI:
         self.reflection_text.config(state=tk.DISABLED)
         self.center_window()
 
+    def check_events(self):
+        # Periodically process events to allow KeyboardInterrupt (Ctrl+C) to be caught
+        self.root.after(100, self.check_events)
+
     def run(self):
-        self.root.mainloop()
+        self.check_events()
+        try:
+            self.root.mainloop()
+        except KeyboardInterrupt:
+            print("\nExiting Local Subconscious...")
+            self.root.destroy()
 
 if __name__ == "__main__":
     app = SubconsciousUI()

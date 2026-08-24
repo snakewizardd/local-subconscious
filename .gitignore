@@ -4,6 +4,9 @@
 /db/
 backlog.txt
 
+# Runtime logs from start_local_subconscious.ps1
+/logs/
+
 # Virtual Environments
 venv/
 env/

@@ -6,11 +6,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const container = document.getElementById('network-graph');
     const thresholdSlider = document.getElementById('threshold-slider');
     const thresholdVal = document.getElementById('threshold-val');
+    const refreshButton = document.getElementById('refresh-button');
     const feedContainer = document.getElementById('feed');
     
     const detailsPanel = document.getElementById('thought-details');
     const selectedText = document.getElementById('selected-text');
     const closeDetailsBtn = document.getElementById('close-details');
+    const REFRESH_INTERVAL_MS = 3000;
+    let feedSignature = null;
+    let graphSignature = null;
+    let refreshPromise = null;
     
     // Vis.js Options (Dark Theme, smooth physics)
     const options = {
@@ -117,15 +122,31 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.thought-card').forEach(card => card.classList.remove('active'));
     }
 
+    async function fetchJson(url) {
+        const response = await fetch(url, { cache: 'no-store' });
+        if (!response.ok) {
+            throw new Error(`${url} returned ${response.status}`);
+        }
+        return response.json();
+    }
+
     async function loadFeed() {
         try {
-            const res = await fetch('/api/thoughts');
-            const data = await res.json();
-            
-            feedContainer.innerHTML = '';
-            const thoughts = data.thoughts.sort((first, second) => {
+            const data = await fetchJson('/api/thoughts');
+            if (!Array.isArray(data.thoughts)) {
+                throw new Error('/api/thoughts returned an invalid payload');
+            }
+
+            const thoughts = [...data.thoughts].sort((first, second) => {
                 return new Date(second.timestamp || 0) - new Date(first.timestamp || 0);
             });
+            const nextSignature = JSON.stringify(thoughts);
+            if (nextSignature === feedSignature) {
+                return;
+            }
+
+            feedSignature = nextSignature;
+            feedContainer.innerHTML = '';
             
             thoughts.forEach(thought => {
                 const div = document.createElement('div');
@@ -153,8 +174,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function loadGraph(threshold) {
         try {
-            const res = await fetch(`/api/graph?threshold=${threshold}`);
-            const data = await res.json();
+            const data = await fetchJson(`/api/graph?threshold=${encodeURIComponent(threshold)}`);
+            if (!Array.isArray(data.nodes) || !Array.isArray(data.edges)) {
+                throw new Error('/api/graph returned an invalid payload');
+            }
+
+            const nextSignature = JSON.stringify(data);
+            if (nextSignature === graphSignature) {
+                return;
+            }
+
+            graphSignature = nextSignature;
 
             const timestamps = data.nodes
                 .map(node => Date.parse(node.timestamp))
@@ -187,7 +217,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Initial load
-    loadFeed();
-    loadGraph(thresholdSlider.value);
+    function refreshDashboard() {
+        if (refreshPromise) {
+            return refreshPromise;
+        }
+
+        refreshPromise = Promise.all([
+            loadFeed(),
+            loadGraph(thresholdSlider.value)
+        ]).finally(() => {
+            refreshPromise = null;
+        });
+        return refreshPromise;
+    }
+
+    refreshButton.addEventListener('click', refreshDashboard);
+    window.addEventListener('focus', refreshDashboard);
+
+    // Initial load and auto-refresh while the page stays open.
+    refreshDashboard();
+    setInterval(refreshDashboard, REFRESH_INTERVAL_MS);
 });

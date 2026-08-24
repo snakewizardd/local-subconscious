@@ -41,6 +41,6 @@ A FastAPI web server (`explorer.py`) pushing data to a physics-based frontend (`
    *(Note: The global hotkey `Ctrl + Alt + Space` is now active).*
 4. **Launch the Visual Cortex:**
    ```bash
-   uvicorn explorer:app
+   python explorer.py
    ```
    Open your browser to `http://localhost:8000` to explore your mapped thoughts.
