@@ -54,6 +54,15 @@ input[type=range] {
     accent-color: #007acc;
 }
 
+#entity-select {
+    width: 100%;
+    padding: 6px;
+    background-color: #2d2d30;
+    color: #e0e0e0;
+    border: 1px solid #3d3d3d;
+    border-radius: 4px;
+}
+
 /* Selected Details Panel */
 .thought-details {
     padding: 20px;
