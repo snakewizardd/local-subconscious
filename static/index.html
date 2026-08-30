@@ -10,35 +10,77 @@
 </head>
 <body>
     <div class="container">
-        <!-- Sidebar for the chronological feed and details -->
         <aside class="sidebar">
             <div class="sidebar-header">
-                <h2>Subconscious Feed</h2>
+                <p class="eyebrow">Local knowledge graph</p>
+                <h1>Evidence Explorer</h1>
                 <div class="controls">
-                    <label for="entity-select">Mind:</label>
-                    <select id="entity-select">
-                        <option value="">Subconscious (default)</option>
-                    </select>
-                    <label for="threshold-slider">Link Threshold: <span id="threshold-val">0.5</span></label>
-                    <input type="range" id="threshold-slider" min="0.1" max="0.99" step="0.05" value="0.5">
-                    <button id="refresh-button" type="button">Refresh</button>
+                    <div class="control-group">
+                        <label for="entity-select">Corpus</label>
+                        <select id="entity-select">
+                            <option value="">Subconscious (default)</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label for="threshold-slider">
+                            Similarity floor
+                            <output id="threshold-val" for="threshold-slider">0.85</output>
+                        </label>
+                        <input type="range" id="threshold-slider" min="0.1" max="0.99" step="0.01" value="0.85">
+                    </div>
+                    <div class="control-group">
+                        <label for="neighbor-slider">
+                            Links per claim
+                            <output id="neighbor-val" for="neighbor-slider">2</output>
+                        </label>
+                        <input type="range" id="neighbor-slider" min="1" max="6" step="1" value="2">
+                    </div>
+                    <div class="control-actions">
+                        <label class="checkbox-control" for="isolate-toggle">
+                            <input type="checkbox" id="isolate-toggle">
+                            <span>Show unlinked claims</span>
+                        </label>
+                        <button id="refresh-button" type="button">Refresh</button>
+                    </div>
                 </div>
             </div>
-            
+
             <div id="thought-details" class="thought-details hidden">
-                <h3>Selected Thought</h3>
-                <p id="selected-text"></p>
-                <button id="close-details">Clear Selection</button>
+                <div class="details-heading">
+                    <h2>Evidence detail</h2>
+                    <button id="close-details" type="button" aria-label="Close evidence detail" title="Close">&times;</button>
+                </div>
+                <div id="selected-meta" class="selected-meta"></div>
+                <p id="selected-text" class="selected-text"></p>
+                <dl id="selected-fields" class="selected-fields"></dl>
+                <div id="selected-source" class="selected-source hidden">
+                    <h3>Source language</h3>
+                    <blockquote id="selected-source-text"></blockquote>
+                </div>
             </div>
 
+            <div class="feed-toolbar">
+                <label for="feed-search">Evidence feed</label>
+                <span id="feed-count">0 claims</span>
+                <input id="feed-search" type="search" placeholder="Filter claims, people, or evidence IDs">
+            </div>
             <div id="feed" class="feed">
-                <!-- Thoughts will be injected here via JS -->
             </div>
         </aside>
 
-        <!-- Main graph visualization area -->
         <main class="graph-container">
+            <div class="graph-hud">
+                <div>
+                    <strong id="graph-count">0 linked claims</strong>
+                    <span id="graph-edge-count">0 semantic links</span>
+                </div>
+                <div class="graph-legend" aria-label="Claim types">
+                    <span><i class="legend-mark fact-mark"></i>Fact</span>
+                    <span><i class="legend-mark inference-mark"></i>Inference</span>
+                </div>
+            </div>
             <div id="network-graph"></div>
+            <div id="graph-empty" class="graph-empty hidden">No links at this similarity floor.</div>
         </main>
     </div>
     

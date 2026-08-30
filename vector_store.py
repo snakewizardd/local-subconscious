@@ -55,6 +55,25 @@ def list_entities():
     entities.sort(key=lambda item: (not item["default"], item["entity"]))
     return entities
 
+def delete_entity_collection(entity):
+    """Delete a named entity collection if it exists."""
+    collection_name = entity_collection_name(entity)
+    with _STORE_LOCK:
+        client = chromadb.PersistentClient(path=DB_PATH)
+        names = {
+            col if isinstance(col, str) else getattr(col, "name", None)
+            for col in client.list_collections()
+        }
+        if collection_name not in names:
+            return False
+        client.delete_collection(collection_name)
+        if _ChromaSharedSystemClient is not None:
+            try:
+                _ChromaSharedSystemClient.clear_system_cache()
+            except Exception:
+                pass
+    return True
+
 class VectorStore:
     def __init__(self, collection_name=DEFAULT_COLLECTION):
         # Operates locally, creating the ./db folder if it doesn't exist
@@ -99,7 +118,7 @@ class VectorStore:
             self._refresh_collection()
             return False
 
-    def process_thought(self, text, embedding):
+    def process_thought(self, text, embedding, metadata=None):
         """
         Executes the crucial Order of Operations:
         1. QUERY FIRST (to prevent retrieving itself)
@@ -126,6 +145,8 @@ class VectorStore:
 
         doc_id = str(uuid.uuid4())
         timestamp = datetime.now(timezone.utc).isoformat()
+        stored_metadata = dict(metadata or {})
+        stored_metadata.update({"hash": text_hash, "timestamp": timestamp})
 
         try:
             if self.collection is None:
@@ -137,7 +158,7 @@ class VectorStore:
                 ids=[doc_id],
                 embeddings=[embedding],
                 documents=[text],
-                metadatas=[{"hash": text_hash, "timestamp": timestamp}]
+                metadatas=[stored_metadata]
             )
         except (AttributeError, chromadb.errors.InternalError, ValueError, TypeError):
             self._refresh_collection()
@@ -147,7 +168,7 @@ class VectorStore:
                         ids=[doc_id],
                         embeddings=[embedding],
                         documents=[text],
-                        metadatas=[{"hash": text_hash, "timestamp": timestamp}]
+                        metadatas=[stored_metadata]
                     )
             except (AttributeError, chromadb.errors.InternalError, ValueError, TypeError):
                 return matches
