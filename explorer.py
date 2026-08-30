@@ -6,7 +6,13 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from embedder import get_embedding
-from vector_store import VectorStore, entity_collection_name, list_entities, DEFAULT_COLLECTION
+from vector_store import (
+    DEFAULT_COLLECTION,
+    VectorStore,
+    delete_entity_collection,
+    entity_collection_name,
+    list_entities,
+)
 
 app = FastAPI(title="Project Subconscious Explorer")
 vector_store = VectorStore()
@@ -32,6 +38,7 @@ def _store_for(entity=None):
 
 class ThoughtIn(BaseModel):
     text: str
+    metadata: dict[str, str | int | float | bool] | None = None
 
 # Ensure the static directory exists
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
@@ -76,6 +83,22 @@ def get_entities():
     """Lists the default subconscious plus every named entity collection."""
     return {"entities": list_entities()}
 
+@app.delete("/api/entities/{entity}")
+def delete_entity(entity: str):
+    """Delete a named entity and all of its thoughts."""
+    if entity.strip().lower() in {"", "default", "subconscious"}:
+        raise HTTPException(status_code=400, detail="The default subconscious cannot be deleted.")
+
+    try:
+        name = entity_collection_name(entity)
+        deleted = delete_entity_collection(entity)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    with _entity_stores_lock:
+        _entity_stores.pop(name, None)
+    return {"status": "deleted" if deleted else "not_found", "entity": entity}
+
 @app.post("/api/entities/{entity}/thoughts")
 def add_entity_thought(entity: str, thought: ThoughtIn):
     """
@@ -95,7 +118,7 @@ def add_entity_thought(entity: str, thought: ThoughtIn):
     if embedding is None:
         raise HTTPException(status_code=503, detail="Embedding endpoint (LM Studio) unreachable.")
 
-    matches = store.process_thought(text, embedding)
+    matches = store.process_thought(text, embedding, thought.metadata)
     return {"status": "stored", "entity": entity, "related": matches}
 
 @app.get("/api/thoughts")
@@ -115,15 +138,21 @@ def get_thoughts(entity: str = None):
         meta = metadatas[i] if metadatas and i < len(metadatas) else {}
         if not isinstance(meta, dict):
             meta = {}
-        thoughts.append({
+        item = {
             "id": ids[i],
             "text": text,
             "timestamp": meta.get("timestamp")
+        }
+        item.update({
+            key: value
+            for key, value in meta.items()
+            if key not in {"hash", "timestamp"}
         })
+        thoughts.append(item)
     return {"thoughts": thoughts}
 
 @app.get("/api/graph")
-def get_graph(threshold: float = 0.5, entity: str = None):
+def get_graph(threshold: float = 0.5, entity: str = None, max_neighbors: int = 0):
     """
     Computes a similarity matrix between all embeddings and returns
     nodes and edges for the network graph.
@@ -147,18 +176,45 @@ def get_graph(threshold: float = 0.5, entity: str = None):
         if not isinstance(meta, dict):
             meta = {}
         short_text = text[:30] + "..." if len(text) > 30 else text
-        nodes.append({
+        identity = " / ".join(
+            value
+            for value in (meta.get("person_id"), meta.get("evidence_id"))
+            if value
+        )
+        label = f"{identity}\n{short_text}" if identity else short_text
+        detail_lines = [text]
+        detail_fields = (
+            ("Person", meta.get("person_id")),
+            ("Evidence", meta.get("evidence_id")),
+            ("Type", meta.get("claim_type")),
+            ("Confidence", meta.get("confidence")),
+            ("Section", meta.get("source_section")),
+        )
+        details = [f"{name}: {value}" for name, value in detail_fields if value]
+        if details:
+            detail_lines.extend(["", *details])
+        if meta.get("raw_profile_language"):
+            detail_lines.extend(["", "Source language:", meta["raw_profile_language"]])
+        full_text = "\n".join(detail_lines)
+        node = {
             "id": ids[i],
-            "label": short_text,
-            "title": text,
-            "full_text": text,
+            "label": label,
+            "text": text,
+            "title": full_text,
+            "full_text": full_text,
             "timestamp": meta.get("timestamp")
+        }
+        node.update({
+            key: value
+            for key, value in meta.items()
+            if key not in {"hash", "timestamp"}
         })
+        nodes.append(node)
 
-    edges = []
+    candidates = []
     num_nodes = len(ids)
     if num_nodes == 1:
-        return {"nodes": nodes, "edges": edges}
+        return {"nodes": nodes, "edges": []}
 
     for i in range(num_nodes):
         for j in range(i + 1, num_nodes):
@@ -166,12 +222,27 @@ def get_graph(threshold: float = 0.5, entity: str = None):
                 continue
             sim = cosine_similarity(embeddings[i], embeddings[j])
             if sim > threshold:
-                edges.append({
+                candidates.append({
                     "from": ids[i],
                     "to": ids[j],
                     "value": float(sim),
                     "title": f"Similarity: {sim:.2f}"
                 })
+
+    if max_neighbors <= 0:
+        return {"nodes": nodes, "edges": candidates}
+
+    max_neighbors = min(max_neighbors, 20)
+    degree = {node_id: 0 for node_id in ids}
+    edges = []
+    for edge in sorted(candidates, key=lambda item: item["value"], reverse=True):
+        source = edge["from"]
+        target = edge["to"]
+        if degree[source] >= max_neighbors or degree[target] >= max_neighbors:
+            continue
+        edges.append(edge)
+        degree[source] += 1
+        degree[target] += 1
 
     return {"nodes": nodes, "edges": edges}
 
