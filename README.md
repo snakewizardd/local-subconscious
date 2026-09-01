@@ -1,3 +1,9 @@
+<p align="right">
+  <a href="https://deepwiki.com/snakewizardd/local-subconscious">
+    <img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki" width="220" />
+  </a>
+</p>
+
 # Local Subconscious
 
 > *Stop organizing your mind. Let the physics of the latent space do it for you.*
